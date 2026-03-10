@@ -69,8 +69,9 @@ A card is the atomic unit of spaced repetition — a single item to be reviewed.
 |---|---|---|
 | `id` | string | Server-assigned unique identifier. Read-only. |
 | `deck_id` | string | ID of the deck this card belongs to. |
-| `front` | string | The prompt or question. Plain text or Markdown. |
-| `back` | string | The answer or information to recall. Plain text or Markdown. |
+| `front` | string | The prompt or question. |
+| `back` | string | The answer or information to recall. |
+| `content_format` | string | Format of `front` and `back` fields. One of: `text`, `markdown`. Default `text`. |
 | `client_ref` | string | Client-assigned identifier for deduplication. Unique per user. |
 | `source` | object | Provenance metadata. See Source object below. |
 | `tags` | string[] | User-defined tags for organization. |
@@ -329,6 +330,7 @@ List cards with optional filters.
 | Parameter | Type | Description |
 |---|---|---|
 | `deck_id` | string | Filter by deck. |
+| `client_ref` | string | Filter by client-assigned reference. Returns at most one card. |
 | `state` | string | Filter by scheduling state: `new`, `learning`, `review`, `relearning`. |
 | `suspended` | boolean | Filter by suspended status. |
 | `tag` | string | Filter by tag. May be repeated for AND logic. |
@@ -416,9 +418,9 @@ Delete a deck. The server MUST decide how to handle cards in the deleted deck (m
 
 ---
 
-### 6.4 Reviews
+### 6.4 Due Cards
 
-#### `GET /osrp/v1/reviews/due`
+#### `GET /osrp/v1/cards/due`
 
 Get cards that are due for review.
 
@@ -428,7 +430,6 @@ Get cards that are due for review.
 |---|---|---|
 | `deck_id` | string | Filter by deck. If omitted, returns due cards across all decks. |
 | `limit` | integer | Maximum number of cards to return. Default 20, maximum 100. |
-| `session_id` | string | Associate the returned cards with a review session. |
 
 **Response `200 OK`:**
 
@@ -445,6 +446,8 @@ Get cards that are due for review.
 | `total_due` | integer | Total number of cards currently due (may exceed `limit`). |
 
 ---
+
+### 6.5 Reviews
 
 #### `POST /osrp/v1/reviews`
 
@@ -503,6 +506,8 @@ Submit multiple reviews in a single request.
 }
 ```
 
+The server MUST process reviews in the order they appear in the array, since each review may change the scheduling state that affects subsequent reviews of the same card. The server MUST NOT treat the batch as an atomic transaction — partial success is expected. Each result in the `results` array corresponds to the review at the same index in the request.
+
 ---
 
 #### `GET /osrp/v1/reviews`
@@ -515,6 +520,8 @@ Get review history.
 |---|---|---|
 | `card_id` | string | Filter reviews for a specific card. |
 | `session_id` | string | Filter reviews for a specific session. |
+| `since` | string | ISO 8601 timestamp. Only return reviews created at or after this time. |
+| `until` | string | ISO 8601 timestamp. Only return reviews created before this time. |
 | `cursor` | string | Pagination cursor. |
 | `limit` | integer | Maximum results. Default 50, maximum 200. |
 
@@ -530,7 +537,7 @@ Get review history.
 
 ---
 
-### 6.5 Review Sessions
+### 6.6 Review Sessions
 
 #### `POST /osrp/v1/sessions`
 
@@ -739,12 +746,12 @@ The following features are **out of scope for v1** but may be addressed in futur
 | `GET` | `/osrp/v1/cards/{card_id}` | Get a card |
 | `PATCH` | `/osrp/v1/cards/{card_id}` | Update a card |
 | `DELETE` | `/osrp/v1/cards/{card_id}` | Delete a card |
+| `GET` | `/osrp/v1/cards/due` | Get due cards |
 | `POST` | `/osrp/v1/decks` | Create a deck |
 | `GET` | `/osrp/v1/decks` | List decks |
 | `GET` | `/osrp/v1/decks/{deck_id}` | Get a deck |
 | `PATCH` | `/osrp/v1/decks/{deck_id}` | Update a deck |
 | `DELETE` | `/osrp/v1/decks/{deck_id}` | Delete a deck |
-| `GET` | `/osrp/v1/reviews/due` | Get due cards |
 | `POST` | `/osrp/v1/reviews` | Submit a review |
 | `POST` | `/osrp/v1/reviews/batch` | Submit multiple reviews |
 | `GET` | `/osrp/v1/reviews` | Review history |

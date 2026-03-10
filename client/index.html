@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OSRP PDF Reader</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module"></script>
+  <script type="module">
+    import * as pdfjsLib from "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs";
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs";
+    window.pdfjsLib = pdfjsLib;
+  </script>
+</head>
+<body>
+
+  <!-- Toolbar -->
+  <div id="toolbar">
+    <label id="open-btn">Open PDF</label>
+    <input type="file" id="file-input" accept=".pdf" />
+    <button id="zoom-out">-</button>
+    <span id="page-info">No file loaded</span>
+    <button id="zoom-in">+</button>
+    <div class="spacer"></div>
+  </div>
+
+  <!-- Main layout -->
+  <div id="app">
+    <!-- PDF pages render here -->
+    <div id="viewer">
+      <div id="empty-state">
+        <div class="icon">&#128196;</div>
+        <div>Open a PDF to get started</div>
+      </div>
+    </div>
+
+    <!-- Highlights sidebar -->
+    <div id="sidebar">
+      <h2>Highlights</h2>
+      <div id="highlights-list"></div>
+
+      <div id="sidebar-footer">
+        <details>
+          <summary>OSRP Server Settings</summary>
+          <div class="settings-fields">
+            <label for="server-url">Server URL</label>
+            <input type="text" id="server-url" placeholder="https://srs.example.com" />
+            <label for="token">Bearer Token</label>
+            <input type="text" id="token" placeholder="your-api-token" />
+            <label for="deck-select">Deck</label>
+            <select id="deck-select">
+              <option value="">-- connect first --</option>
+            </select>
+            <button id="connect-btn">Connect</button>
+          </div>
+        </details>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

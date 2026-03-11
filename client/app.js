@@ -1,4 +1,5 @@
 import { OSRPClient } from "./osrp.js";
+import { sampleDocument } from "./sample-content.js";
 
 // ── state ──────────────────────────────────────────────────────────
 
@@ -7,12 +8,13 @@ let currentScale = 1.5;
 let highlights = []; // { id, text, page, pushedAt }
 let osrpClient = null;
 let deckId = null;
-let pdfFileName = "";
+let docTitle = "";
 
 // ── DOM refs ───────────────────────────────────────────────────────
 
 const fileInput = document.getElementById("file-input");
 const openBtn = document.getElementById("open-btn");
+const sampleBtn = document.getElementById("sample-btn");
 const zoomInBtn = document.getElementById("zoom-in");
 const zoomOutBtn = document.getElementById("zoom-out");
 const pageInfo = document.getElementById("page-info");
@@ -23,6 +25,51 @@ const tokenInput = document.getElementById("token");
 const deckSelect = document.getElementById("deck-select");
 const connectBtn = document.getElementById("connect-btn");
 
+// ── sample document rendering ──────────────────────────────────────
+
+function renderSampleDocument() {
+  pdfDoc = null;
+  docTitle = sampleDocument.title;
+  viewer.innerHTML = "";
+
+  const pages = sampleDocument.pages;
+  pageInfo.textContent = `${pages.length} page${pages.length > 1 ? "s" : ""}`;
+
+  pages.forEach((page, index) => {
+    const container = document.createElement("div");
+    container.className = "page-container doc-page";
+    container.dataset.page = index + 1;
+
+    const content = document.createElement("div");
+    content.className = "doc-content";
+
+    if (index === 0) {
+      const docHeader = document.createElement("div");
+      docHeader.className = "doc-header";
+      docHeader.innerHTML = `<span class="doc-badge">SAMPLE DOCUMENT</span>`;
+      content.appendChild(docHeader);
+    }
+
+    const h = document.createElement("h2");
+    h.textContent = page.heading;
+    content.appendChild(h);
+
+    for (const para of page.paragraphs) {
+      const p = document.createElement("p");
+      p.textContent = para;
+      content.appendChild(p);
+    }
+
+    const footer = document.createElement("div");
+    footer.className = "doc-footer";
+    footer.textContent = `${index + 1} / ${pages.length}`;
+    content.appendChild(footer);
+
+    container.appendChild(content);
+    viewer.appendChild(container);
+  });
+}
+
 // ── PDF loading ────────────────────────────────────────────────────
 
 openBtn.addEventListener("click", () => fileInput.click());
@@ -31,54 +78,47 @@ fileInput.addEventListener("change", async (e) => {
   const file = e.target.files[0];
   if (!file) return;
 
-  pdfFileName = file.name;
+  docTitle = file.name;
   const arrayBuffer = await file.arrayBuffer();
   const typedArray = new Uint8Array(arrayBuffer);
 
   pdfDoc = await pdfjsLib.getDocument({ data: typedArray }).promise;
   pageInfo.textContent = `${pdfDoc.numPages} page${pdfDoc.numPages > 1 ? "s" : ""}`;
 
-  renderAllPages();
+  renderAllPdfPages();
 });
 
-async function renderAllPages() {
+async function renderAllPdfPages() {
   viewer.innerHTML = "";
 
   for (let i = 1; i <= pdfDoc.numPages; i++) {
     const page = await pdfDoc.getPage(i);
     const viewport = page.getViewport({ scale: currentScale });
 
-    // Container
     const container = document.createElement("div");
     container.className = "page-container";
     container.dataset.page = i;
     container.style.width = `${viewport.width}px`;
     container.style.height = `${viewport.height}px`;
 
-    // Canvas
     const canvas = document.createElement("canvas");
     canvas.width = viewport.width;
     canvas.height = viewport.height;
     const ctx = canvas.getContext("2d");
     await page.render({ canvasContext: ctx, viewport }).promise;
 
-    // Text layer for selection
     const textLayerDiv = document.createElement("div");
     textLayerDiv.className = "text-layer";
 
     const textContent = await page.getTextContent();
-    const textItems = textContent.items;
-
-    for (const item of textItems) {
+    for (const item of textContent.items) {
       const span = document.createElement("span");
       const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
-
       span.textContent = item.str;
       span.style.left = `${tx[4]}px`;
       span.style.top = `${tx[5] - item.height * currentScale}px`;
       span.style.fontSize = `${item.height * currentScale}px`;
       span.style.fontFamily = item.fontName || "sans-serif";
-
       textLayerDiv.appendChild(span);
     }
 
@@ -88,18 +128,18 @@ async function renderAllPages() {
   }
 }
 
-// ── zoom ───────────────────────────────────────────────────────────
+// ── zoom (PDF only) ────────────────────────────────────────────────
 
 zoomInBtn.addEventListener("click", () => {
   if (!pdfDoc) return;
   currentScale = Math.min(currentScale + 0.25, 4);
-  renderAllPages();
+  renderAllPdfPages();
 });
 
 zoomOutBtn.addEventListener("click", () => {
   if (!pdfDoc) return;
   currentScale = Math.max(currentScale - 0.25, 0.5);
-  renderAllPages();
+  renderAllPdfPages();
 });
 
 // ── text selection → highlight ─────────────────────────────────────
@@ -109,8 +149,10 @@ document.addEventListener("mouseup", () => {
   const text = selection?.toString().trim();
   if (!text) return;
 
-  // Figure out which page the selection is in
+  // Ignore selections inside sidebar / toolbar / modals
   const anchorNode = selection.anchorNode;
+  if (anchorNode?.parentElement?.closest?.("#sidebar, #toolbar, .modal-overlay")) return;
+
   const pageContainer = anchorNode?.parentElement?.closest?.(".page-container");
   const page = pageContainer ? parseInt(pageContainer.dataset.page, 10) : null;
 
@@ -189,7 +231,6 @@ function openPushModal(highlight) {
     overlay.remove();
   });
 
-  // Close on backdrop click
   overlay.addEventListener("click", (e) => {
     if (e.target === overlay) overlay.remove();
   });
@@ -212,7 +253,7 @@ async function pushCard(highlight, front, back, tags) {
       back: back || "(no answer provided)",
       clientRef,
       sourceUrl: null,
-      title: pdfFileName || null,
+      title: docTitle || null,
       context: highlight.text.slice(0, 200),
       tags,
     });
@@ -260,7 +301,6 @@ connectBtn.addEventListener("click", async () => {
       return;
     }
 
-    // Load decks into the select
     const res = await osrpClient.listDecks();
     deckSelect.innerHTML = '<option value="">-- select deck --</option>';
     for (const deck of res.data) {
@@ -288,3 +328,10 @@ function escapeHtml(str) {
   div.textContent = str;
   return div.innerHTML;
 }
+
+// ── load sample on click + auto-load on startup ────────────────────
+
+sampleBtn.addEventListener("click", () => renderSampleDocument());
+
+// Auto-load sample document so the app isn't empty on first visit
+renderSampleDocument();
